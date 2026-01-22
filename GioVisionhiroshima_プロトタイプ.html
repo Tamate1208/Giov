@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>簡易柱状図付きボーリングマップ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            overscroll-behavior-y: none;
+        }
+        #map { width: 100%; height: 100%; z-index: 0; }
+        #main-container { height: calc(100vh - 56px); }
+
+        /* 簡易柱状図コンテナ */
+        .layer-chart-wrapper {
+            margin-bottom: 8px;
+        }
+        .layer-chart-container {
+            display: flex;
+            width: 100%;
+            height: 24px; 
+            overflow: hidden;
+            border-radius: 4px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .layer-segment {
+            height: 100%;
+            display: flex;
+            flex-direction: column; 
+            align-items: center;
+            justify-content: center;
+            border-right: 1px solid rgba(0,0,0,0.3); 
+            box-sizing: border-box;
+            transition: width 0.3s;
+        }
+
+        /* 深度目盛りコンテナ */
+        .depth-scale-container {
+            position: relative;
+            width: 100%;
+            height: 14px;
+            margin-top: 2px;
+            font-size: 9px;
+            color: #6b7280;
+        }
+        .scale-mark {
+            position: absolute;
+            top: 0;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 1;
+        }
+        .scale-line {
+            width: 1px;
+            height: 4px;
+            background-color: #9ca3af;
+            margin-bottom: 0px;
+        }
+        .scale-text {
+            line-height: 1;
+            white-space: nowrap;
+        }
+
+        /* 簡易柱状図用の色定義 */
+        .soil-Sand { background-color: #fcd34d; }
+        .soil-Clay { background-color: #8b5cf6; }
+        .soil-Gravel { background-color: #9ca3af; }
+        .soil-Rock { background-color: #4b5563; }
+        .soil-Organic { background-color: #10b981; }
+
+        /* N値テキスト */
+        .n-value-text {
+            color: white;
+            text-shadow: 0 0 2px rgba(0,0,0,0.8), 0 0 4px rgba(0,0,0,0.5);
+            font-size: 11px; /* 少し大きく */
+            font-weight: bold;
+            line-height: 1;
+            white-space: nowrap;
+        }
+        
+        /* マーカーID表示用のツールチップ */
+        .leaflet-tooltip.leaflet-tooltip-top {
+            background-color: #fff;
+            border: 1px solid #d1d5db; 
+            padding: 2px 5px; 
+            border-radius: 4px;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            font-size: 10px; 
+            font-weight: 600; 
+            opacity: 0.9;
+            white-space: nowrap;
+        }
+        .leaflet-tooltip-top:before {
+            border-top-color: transparent !important;
+        }
+
+        /* Leafletポップアップの幅を広げる */
+        .leaflet-popup-content {
+            min-width: 250px !important; 
+            margin: 14px !important;
+        }
+    </style>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col overflow-hidden">
+    
+    <!-- ヘッダー -->
+    <header class="bg-white shadow-sm z-20 px-4 py-3 flex justify-between items-center flex-none">
+        <div>
+            <h1 class="text-lg font-bold text-gray-800">ボーリングマップ「GioVision Hiroshima」</h1>
+            <p class="text-xs text-gray-500">柱状図の下に層境界の深度を表示</p>
+        </div>
+        <div class="text-right">
+            <span class="block text-xs text-gray-500">表示範囲内</span>
+            <span id="visibleCount" class="text-xl font-bold text-blue-600">0</span>
+            <span class="text-xs text-gray-500">/ <span id="totalCount">0</span>件</span>
+        </div>
+    </header>
+
+    <!-- メインエリア -->
+    <main id="main-container" class="flex-grow flex flex-col md:flex-row overflow-hidden relative">
+        
+        <!-- マップエリア -->
+        <div class="w-full h-[55%] md:h-full md:w-2/3 lg:w-3/4 relative order-1 md:order-2">
+            <div id="map"></div>
+            <!-- ローディングインジケータ -->
+            <div id="loading" class="absolute top-4 left-1/2 transform -translate-x-1/2 bg-white px-4 py-2 rounded-full shadow-lg z-[1000] hidden">
+                <span class="text-xs font-bold text-gray-600 flex items-center">
+                    <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    検索中...
+                </span>
+            </div>
+        </div>
+
+        <!-- リストエリア -->
+        <div class="w-full h-[45%] md:h-full md:w-1/3 lg:w-1/4 bg-white border-t md:border-t-0 md:border-r border-gray-200 order-2 md:order-1 flex flex-col z-10">
+            <div class="p-3 bg-gray-50 border-b border-gray-200 flex-none">
+                <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">エリア内のデータ一覧</h2>
+                <!-- 凡例 -->
+                <div class="text-xs flex flex-wrap gap-x-3 gap-y-1">
+                    <span class="flex items-center"><div class="w-2 h-2 rounded-full soil-Sand mr-1"></div>砂質</span>
+                    <span class="flex items-center"><div class="w-2 h-2 rounded-full soil-Clay mr-1"></div>粘性</span>
+                    <span class="flex items-center"><div class="w-2 h-2 rounded-full soil-Gravel mr-1"></div>礫混じり</span>
+                    <span class="flex items-center"><div class="w-2 h-2 rounded-full soil-Rock mr-1"></div>岩盤</span>
+                    <span class="text-xs text-gray-500 ml-auto">（N値/層深度）</span>
+                </div>
+            </div>
+            <div id="dataList" class="overflow-y-auto p-3 space-y-3 flex-grow bg-white">
+                <!-- データリストがここに挿入されます -->
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        let map;
+        let markersLayer; 
+        let allData = []; 
+
+        let currentPopupId = null;
+        let isReRendering = false;
+
+        const soilTypes = ["Sand", "Clay", "Gravel", "Rock", "Organic"];
+        const soilNamesJp = {
+            "Sand": "砂質土", 
+            "Clay": "粘性土", 
+            "Gravel": "礫混じり土", 
+            "Rock": "岩盤", 
+            "Organic": "腐植土"
+        };
+        
+        // ---------------------------------------------------------
+        // 1. ダミーデータの生成
+        // ---------------------------------------------------------
+        function generateMockData(count) {
+            const centerLat = 34.396;
+            const centerLng = 132.459;
+            const data = [];
+            
+            for (let i = 0; i < count; i++) {
+                const lat = centerLat + (Math.random() - 0.5) * 0.4;
+                const lng = centerLng + (Math.random() - 0.5) * 0.5;
+                const id = `B-${1000 + i}`;
+                
+                const totalDepth = Math.floor(Math.random() * 40) + 5; 
+                
+                let currentDepth = 0; 
+                let layers = [];
+                let layerCount = Math.floor(Math.random() * 4) + 2; 
+                
+                for(let j = 0; j < layerCount; j++) {
+                    const typeIndex = Math.floor(Math.random() * soilTypes.length);
+                    const type = soilTypes[typeIndex];
+                    let thickness;
+
+                    if (j === layerCount - 1) {
+                        thickness = totalDepth - currentDepth;
+                    } else {
+                        const remaining = totalDepth - currentDepth;
+                        thickness = Math.max(1, Math.floor(Math.random() * (remaining / (layerCount - j)) * 1.5));
+                        thickness = Math.min(thickness, remaining);
+                    }
+                    
+                    if (thickness > 0) {
+                        let nValue;
+                        if (type === 'Rock') {
+                            nValue = 50 + Math.floor(Math.random() * 10); 
+                        } else if (type === 'Gravel' || type === 'Sand') {
+                            nValue = Math.floor(Math.random() * 50) + 10;
+                        } else { 
+                            nValue = Math.floor(Math.random() * 20) + 1;
+                        }
+                        nValue = Math.min(nValue, 50);
+
+                        layers.push({
+                            type: type,
+                            thickness: thickness,
+                            startDepth: currentDepth,
+                            endDepth: currentDepth + thickness,
+                            nValue: nValue
+                        });
+                        currentDepth += thickness;
+                    }
+                    if (currentDepth >= totalDepth) break;
+                }
+                
+                const finalDepth = layers.reduce((sum, layer) => sum + layer.thickness, 0);
+                const mainSoil = layers.length > 0 ? soilNamesJp[layers[0].type] : "不明";
+
+                const randomDay = Math.floor(Math.random() * 365) + 1;
+                const randomDate = new Date(2023, 0, randomDay); 
+                const dateString = `${randomDate.getFullYear()}/${(randomDate.getMonth() + 1).toString().padStart(2, '0')}/${randomDate.getDate().toString().padStart(2, '0')}`;
+
+                data.push({
+                    id: id,
+                    lat: lat,
+                    lng: lng,
+                    file: `${id}_${lat.toFixed(5)}_${lng.toFixed(5)}.pdf`,
+                    depth: finalDepth,
+                    layers: layers,
+                    description: `総深度 ${finalDepth.toFixed(1)}m / ${mainSoil}主体`,
+                    date: dateString
+                });
+            }
+            return data;
+        }
+
+        // ---------------------------------------------------------
+        // 2. 簡易柱状図 HTML生成ロジック
+        // ---------------------------------------------------------
+        function createLayerChartHtml(layers, totalDepth) {
+            let chartHtml = '';
+            let scaleHtml = '';
+
+            // 0m地点の目盛り
+            scaleHtml += `
+                <div class="scale-mark" style="left: 0%">
+                    <span class="scale-line"></span>
+                    <span class="scale-text">0</span>
+                </div>
+            `;
+            
+            layers.forEach(layer => {
+                const percentage = (layer.thickness / totalDepth) * 100;
+                
+                const nValueText = layer.nValue >= 50 ? '50+' : layer.nValue;
+
+                // ツールチップ内の深度表示は小数点以下1桁を維持
+                const tooltip = `
+                    ${soilNamesJp[layer.type]} | N値: ${layer.nValue} 
+                    (${layer.startDepth.toFixed(1)}m 〜 ${layer.endDepth.toFixed(1)}m)
+                `.trim();
+
+                const isSegmentWideEnough = percentage > 5; 
+
+                // バースケール部分
+                chartHtml += `
+                    <div class="layer-segment soil-${layer.type}" 
+                         style="width: ${percentage.toFixed(1)}%;" 
+                         title="${tooltip}">
+                        ${isSegmentWideEnough ? 
+                            `<span class="n-value-text">
+                                ${nValueText}
+                            </span>` 
+                            : ''}
+                    </div>
+                `;
+
+                // 目盛り部分 (各層の終了深度) - ここを整数表示に変更
+                const endPct = (layer.endDepth / totalDepth) * 100;
+                const depthInt = Math.floor(layer.endDepth); // 整数に切り捨て
+
+                // 深度が0より大きく、かつ整数になった場合のみ目盛りを表示
+                if (depthInt > 0 && depthInt === layer.endDepth) {
+                    scaleHtml += `
+                        <div class="scale-mark" style="left: ${endPct.toFixed(1)}%">
+                            <span class="scale-line"></span>
+                            <span class="scale-text">${depthInt}</span>
+                        </div>
+                    `;
+                }
+            });
+            
+            return `
+                <div class="layer-chart-wrapper">
+                    <div class="layer-chart-container">
+                        ${chartHtml}
+                    </div>
+                    <div class="depth-scale-container">
+                        ${scaleHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        // ---------------------------------------------------------
+        // 3. マップ初期化
+        // ---------------------------------------------------------
+        document.addEventListener('DOMContentLoaded', () => {
+            allData = generateMockData(300);
+            document.getElementById('totalCount').textContent = allData.length;
+            initMap();
+        });
+
+        function initMap() {
+            const center = [34.396, 132.459];
+            map = L.map('map', { center: center, zoom: 10, zoomControl: false });
+            L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap',
+                maxZoom: 19
+            }).addTo(map);
+
+            markersLayer = L.layerGroup().addTo(map);
+            map.invalidateSize(); 
+            updateVisibleData();
+
+            map.on('moveend', () => { updateVisibleData(); });
+            window.addEventListener('resize', () => { map.invalidateSize(); });
+
+            map.on('zoomend', updateMarkerTooltipVisibility);
+            
+            map.on('popupopen', function(e) {
+                if (e.popup && e.popup._source && e.popup._source.dataId) {
+                    currentPopupId = e.popup._source.dataId;
+                }
+            });
+
+            map.on('popupclose', function(e) {
+                if (!isReRendering) {
+                    currentPopupId = null;
+                }
+            });
+
+            updateMarkerTooltipVisibility();
+        }
+
+        // ---------------------------------------------------------
+        // 4. マーカーとポップアップの描画
+        // ---------------------------------------------------------
+        function renderMarkers(data) {
+            isReRendering = true;
+            markersLayer.clearLayers();
+
+            data.forEach(point => {
+                const marker = L.marker([point.lat, point.lng]);
+                marker.dataId = point.id;
+
+                marker.bindTooltip(point.id, {
+                    direction: 'top',
+                    offset: L.point(0, -15),
+                    className: 'marker-id-tooltip' 
+                });
+
+                let layerDetailsHtml = point.layers.map(layer => `
+                    <li class="flex justify-between items-center py-0.5 border-b border-gray-100">
+                        <span class="text-xs text-gray-700 font-medium">
+                            <span class="w-2 h-2 inline-block rounded-full soil-${layer.type} mr-1 align-middle"></span>
+                            ${soilNamesJp[layer.type]}
+                        </span>
+                        <span class="text-xs text-gray-500">${layer.startDepth.toFixed(1)}m 〜 ${layer.endDepth.toFixed(1)}m</span>
+                        <span class="text-xs font-bold text-gray-800">N=${layer.nValue >= 50 ? '50+' : layer.nValue}</span>
+                    </li>
+                `).join('');
+                
+                const chartHtml = createLayerChartHtml(point.layers, point.depth);
+
+                const popupContent = `
+                    <div class="min-w-[250px] text-xs"> 
+                        <div class="font-bold text-blue-700 text-sm">${point.id}</div>
+                        <p class="text-xs text-gray-600 mb-2">採取日: ${point.date} / 総深度: ${point.depth.toFixed(1)}m</p>
+
+                        <p class="text-gray-500 mb-2">${point.description}</p>
+                        
+                        ${chartHtml}
+
+                        <div class="mt-2 text-gray-700 font-bold mb-1">層構成詳細</div>
+                        <ul class="list-none p-0 m-0 bg-gray-50 rounded p-2">
+                            ${layerDetailsHtml}
+                        </ul>
+
+                        <a href="https://dobox.pref.hiroshima.jp/pdfs/${point.file}" target="_blank" 
+                           class="block text-center bg-blue-500 text-white mt-3 py-1 text-xs rounded hover:bg-blue-600">
+                            柱状図PDFを開く (Sample URL)
+                        </a>
+                    </div>
+                `;
+                
+                marker.bindPopup(popupContent, { 
+                    autoPanPadding: L.point(10, 10)
+                });
+                
+                markersLayer.addLayer(marker);
+
+                if (point.id === currentPopupId) {
+                    setTimeout(() => marker.openPopup(), 10);
+                }
+            });
+            
+            isReRendering = false;
+            updateMarkerTooltipVisibility(); 
+        }
+
+        // ---------------------------------------------------------
+        // 5. リスト描画
+        // ---------------------------------------------------------
+        function renderList(data) {
+            const listContainer = document.getElementById('dataList');
+            if (data.length === 0) {
+                listContainer.innerHTML = `<div class="text-center py-10 text-gray-400"><p class="text-sm">この範囲にデータはありません</p><p class="text-xs mt-1">地図を移動または縮小してください</p></div>`;
+                return;
+            }
+
+            let html = '';
+            const displayLimit = 50; 
+            const displayData = data.slice(0, displayLimit);
+
+            displayData.forEach(point => {
+                const chartHtml = createLayerChartHtml(point.layers, point.depth);
+                
+                html += `
+                    <div onclick="focusMarker('${point.id}', ${point.lat}, ${point.lng})" 
+                         class="cursor-pointer bg-white border border-gray-200 p-3 rounded-lg shadow-sm hover:border-blue-400 hover:shadow-md transition active:bg-blue-50 group">
+                        
+                        ${chartHtml}
+
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="font-bold text-sm text-gray-800 group-hover:text-blue-700">${point.id}</span>
+                            <span class="text-xs text-gray-500">採取日: ${point.date}</span>
+                        </div>
+                        <p class="text-xs text-gray-600">総深度: ${point.depth.toFixed(1)}m / ${point.description.split('/')[1].trim()}</p>
+                    </div>
+                `;
+            });
+
+            if (data.length > displayLimit) {
+                html += `<div class="text-center py-2 text-xs text-gray-500">他 ${data.length - displayLimit} 件（地図をズームしてください）</div>`;
+            }
+
+            listContainer.innerHTML = html;
+        }
+
+        // ---------------------------------------------------------
+        // 6. 表示データ更新
+        // ---------------------------------------------------------
+        function updateVisibleData() {
+            const loading = document.getElementById('loading');
+            loading.classList.remove('hidden');
+
+            setTimeout(() => {
+                const bounds = map.getBounds();
+                const visibleData = allData.filter(point => {
+                    const latLng = L.latLng(point.lat, point.lng);
+                    return bounds.contains(latLng);
+                });
+
+                renderMarkers(visibleData);
+                renderList(visibleData);
+
+                document.getElementById('visibleCount').textContent = visibleData.length;
+                loading.classList.add('hidden');
+            }, 100);
+        }
+
+        // ---------------------------------------------------------
+        // 7. マーカーへのフォーカス
+        // ---------------------------------------------------------
+        window.focusMarker = function(id, lat, lng) {
+            currentPopupId = id;
+            const targetLatLng = L.latLng(lat, lng);
+            const targetZoom = 15;
+            
+            if (map.getCenter().distanceTo(targetLatLng) < 5 && map.getZoom() === targetZoom) {
+                 updateVisibleData();
+            } else {
+                 map.flyTo(targetLatLng, targetZoom, { duration: 1.0 });
+            }
+        };
+
+        // ---------------------------------------------------------
+        // 8. ツールチップ表示制御
+        // ---------------------------------------------------------
+        function updateMarkerTooltipVisibility() {
+            const zoomThreshold = 14; 
+            const currentZoom = map.getZoom();
+            const shouldShow = currentZoom >= zoomThreshold;
+
+            markersLayer.eachLayer(layer => {
+                if (shouldShow) {
+                    layer.openTooltip();
+                } else {
+                    layer.closeTooltip();
+                }
+            });
+        }
+    </script>
+</body>
+</html>

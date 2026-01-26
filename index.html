@@ -276,11 +276,12 @@
         };
 
         function updateMarkerTooltipVisibility() {
-            const show = map.getZoom() >= 10;
+            const show = map.getZoom() >= 13;
             markersLayer.eachLayer(layer => show ? layer.openTooltip() : layer.closeTooltip());
         }
     </script>
 </body>
 </html>
+
 
 

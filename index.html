@@ -19,10 +19,16 @@
         /* デスクトップ用：横に隠す */
         .sidebar-hidden-desktop { transform: translateX(-100%); width: 0 !important; min-width: 0 !important; margin: 0 !important; border: none !important; }
         
-        /* モバイル用：高さをハンドル分（40px）まで縮める（これで地図が広がる） */
+        /* モバイル用：高さをハンドル分（約60px）まで縮める */
         @media (max-width: 767px) {
-            #listSidebar { height: 45%; } /* デフォルトの高さ */
-            .sidebar-hidden-mobile { height: 40px !important; border-top: 3px solid #3b82f6 !important; }
+            #listSidebar { 
+                height: 45%; /* 開いている時の高さ */
+                overflow: hidden; /* 閉じている時に中身を隠す */
+            }
+            .sidebar-hidden-mobile { 
+                height: 60px !important; /* 閉じている時の高さ（ボタンが収まるサイズ） */
+                border-top: 3px solid #3b82f6 !important;
+            }
         }
 
         .layer-chart-wrapper { margin-bottom: 8px; }
@@ -56,8 +62,8 @@
     <header class="bg-white shadow-sm z-20 px-4 py-2 flex flex-wrap justify-between items-center flex-none">
         <div class="flex items-center space-x-4">
             <div>
-                <h1 class="text-base md:text-lg font-bold text-gray-800 leading-tight">GioVision Hiroshima</h1>
-                <p class="hidden md:block text-[10px] text-gray-500">柱状図の下に層境界の深度を表示 ※全てダミーデータ</p>
+                <h1 class="text-base md:text-lg font-bold text-gray-800 leading-tight">ボーリングマップ「GioVision Hiroshima」</h1>
+                <p class="hidden md:block text-[10px] text-gray-500">柱状図の下に層境界の深度を表示</p>
             </div>
             <div class="flex items-center bg-gray-100 rounded-lg px-2 py-1 border border-gray-200">
                 <input type="text" id="addressInput" placeholder="住所で検索..." class="bg-transparent text-sm focus:outline-none w-32 md:w-48 px-1">
@@ -77,15 +83,9 @@
 
     <main id="main-container" class="flex-grow flex flex-col md:flex-row overflow-hidden relative">
         
-        <div id="listSidebar" class="sidebar-transition w-full md:h-full md:w-1/3 lg:w-1/4 bg-white border-t md:border-t-0 md:border-r border-gray-200 order-2 md:order-1 flex flex-col z-[1001] relative">
+        <div id="listSidebar" class="sidebar-transition w-full md:h-full md:w-1/3 lg:w-1/4 bg-white border-t md:border-t-0 md:border-r border-gray-200 order-2 md:order-1 flex flex-col z-[1001] relative rounded-t-xl md:rounded-none">
             
-            <button onclick="toggleSidebar()" class="hidden md:flex absolute -right-6 top-1/2 -translate-y-1/2 bg-white border border-gray-300 rounded-r-md p-1 shadow-md hover:bg-gray-50 z-30">
-                <svg id="arrowIconDesktop" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4 text-gray-600 transition-transform">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-                </svg>
-            </button>
-
-            <button onclick="toggleSidebar()" class="md:hidden absolute left-0 right-0 -top-10 bg-white border-t border-l border-r border-gray-300 rounded-t-xl px-6 pt-2 pb-1 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-30 flex flex-col items-center">
+            <button onclick="toggleSidebar()" class="md:hidden w-full flex-none bg-white border-b border-gray-100 px-6 pt-3 pb-2 flex flex-col items-center">
                 <div class="mobile-handle-bar"></div>
                 <div class="flex items-center gap-1">
                     <svg id="arrowIconMobile" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3 text-gray-500 transition-transform rotate-90">
@@ -95,19 +95,27 @@
                 </div>
             </button>
 
-            <div class="p-3 bg-gray-50 border-b border-gray-200 flex-none overflow-hidden">
-                <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">エリア内のデータ一覧</h2>
-                <div class="text-xs flex flex-wrap gap-x-3 gap-y-1">
-                    <span class="flex items-center"><div class="w-2 h-2 rounded-full soil-Sand mr-1"></div>砂質</span>
-                    <span class="flex items-center"><div class="w-2 h-2 rounded-full soil-Clay mr-1"></div>粘性</span>
-                    <span class="flex items-center"><div class="w-2 h-2 rounded-full soil-Gravel mr-1"></div>礫混じり</span>
-                    <span class="flex items-center"><div class="w-2 h-2 rounded-full soil-Rock mr-1"></div>岩盤</span>
+            <button onclick="toggleSidebar()" class="hidden md:flex absolute -right-6 top-1/2 -translate-y-1/2 bg-white border border-gray-300 rounded-r-md p-1 shadow-md hover:bg-gray-50 z-30">
+                <svg id="arrowIconDesktop" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4 text-gray-600 transition-transform">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                </svg>
+            </button>
+
+            <div id="sidebarInner" class="flex flex-col flex-grow overflow-hidden">
+                <div class="p-3 bg-gray-50 border-b border-gray-200 flex-none">
+                    <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">エリア内のデータ一覧</h2>
+                    <div class="text-xs flex flex-wrap gap-x-3 gap-y-1">
+                        <span class="flex items-center"><div class="w-2 h-2 rounded-full soil-Sand mr-1"></div>砂質</span>
+                        <span class="flex items-center"><div class="w-2 h-2 rounded-full soil-Clay mr-1"></div>粘性</span>
+                        <span class="flex items-center"><div class="w-2 h-2 rounded-full soil-Gravel mr-1"></div>礫混じり</span>
+                        <span class="flex items-center"><div class="w-2 h-2 rounded-full soil-Rock mr-1"></div>岩盤</span>
+                    </div>
                 </div>
+                <div id="dataList" class="overflow-y-auto p-3 space-y-3 flex-grow bg-white"></div>
             </div>
-            <div id="dataList" class="overflow-y-auto p-3 space-y-3 flex-grow bg-white"></div>
         </div>
 
-        <div class="flex-grow w-full md:h-full relative order-1 md:order-2">
+        <div class="flex-grow w-full md:h-full relative order-1 md:order-2 min-h-0">
             <div id="map"></div>
             <div id="loading" class="absolute top-4 left-1/2 transform -translate-x-1/2 bg-white px-4 py-2 rounded-full shadow-lg z-[1000] hidden">
                 <span class="text-xs font-bold text-gray-600 flex items-center">
@@ -146,7 +154,7 @@
             if (e.key === 'Enter') searchAddress();
         });
 
-        // --- 切り替え機能 (レイアウト追従版) ---
+        // --- 切り替え機能 (Chrome安定版) ---
         let sidebarVisible = true;
         function toggleSidebar() {
             const sidebar = document.getElementById('listSidebar');
@@ -155,7 +163,6 @@
             sidebarVisible = !sidebarVisible;
 
             if (isMobile) {
-                // translateではなくheightを制御することで地図側の領域を変化させる
                 sidebar.classList.toggle('sidebar-hidden-mobile', !sidebarVisible);
                 document.getElementById('arrowIconMobile').style.transform = sidebarVisible ? 'rotate(90deg)' : 'rotate(-90deg)';
                 toggleText.textContent = sidebarVisible ? 'Close List' : 'Open List';
@@ -164,7 +171,6 @@
                 document.getElementById('arrowIconDesktop').style.transform = sidebarVisible ? '' : 'rotate(180deg)';
             }
             
-            // レイアウト変化に合わせて地図をリサイズ
             setTimeout(() => { 
                 map.invalidateSize({ animate: true }); 
             }, 300);
@@ -240,7 +246,17 @@
                 const marker = L.marker([p.lat, p.lng]); marker.dataId = p.id;
                 marker.bindTooltip(p.id, { direction: 'top', offset: L.point(0, -15) });
                 const layerDetails = p.layers.map(l => `<li class="flex justify-between items-center py-0.5 border-b border-gray-100"><span class="text-xs font-medium"><span class="w-2 h-2 inline-block rounded-full soil-${l.type} mr-1"></span>${soilNamesJp[l.type]}</span><span class="text-xs text-gray-500">${l.startDepth.toFixed(1)}m〜${l.endDepth.toFixed(1)}m</span><span class="text-xs font-bold text-gray-800">N=${l.nValue >= 50 ? '50+' : l.nValue}</span></li>`).join('');
-                marker.bindPopup(`<div class="min-w-[250px] text-xs"><div class="font-bold text-blue-700 text-sm">${p.id}</div><p class="text-xs text-gray-600 mb-2">採取日: ${p.date} / 総深度: ${p.depth.toFixed(1)}m</p><p class="text-gray-500 mb-2">${p.description}</p>${createLayerChartHtml(p.layers, p.depth)}<div class="mt-2 text-gray-700 font-bold mb-1">層構成詳細</div><ul class="list-none p-0 bg-gray-50 rounded p-2">${layerDetails}</ul><a href="B-sample_34.056944_132.525833_20180522.pdf" target="_blank" rel="noopener noreferrer" class="pdf-button">柱状図PDFを開く (Sample)</a>/a></div>`);
+                
+                marker.bindPopup(`<div class="min-w-[250px] text-xs">
+                    <div class="font-bold text-blue-700 text-sm">${p.id}</div>
+                    <p class="text-xs text-gray-600 mb-2">採取日: ${p.date} / 総深度: ${p.depth.toFixed(1)}m</p>
+                    <p class="text-gray-500 mb-2">${p.description}</p>
+                    ${createLayerChartHtml(p.layers, p.depth)}
+                    <div class="mt-2 text-gray-700 font-bold mb-1">層構成詳細</div>
+                    <ul class="list-none p-0 bg-gray-50 rounded p-2">${layerDetails}</ul>
+                    <a href="pdf/${p.id}.pdf" target="_blank" rel="noopener noreferrer" class="pdf-button">柱状図PDFを開く (新しいタブ)</a>
+                </div>`);
+                
                 markersLayer.addLayer(marker);
                 if (p.id === currentPopupId) setTimeout(() => marker.openPopup(), 10);
             });
@@ -276,16 +292,9 @@
         };
 
         function updateMarkerTooltipVisibility() {
-            const show = map.getZoom() >= 13;
+            const show = map.getZoom() >= 14;
             markersLayer.eachLayer(layer => show ? layer.openTooltip() : layer.closeTooltip());
         }
     </script>
 </body>
 </html>
-
-
-
-
-
-
-

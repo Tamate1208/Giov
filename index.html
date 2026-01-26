@@ -240,7 +240,7 @@
                 const marker = L.marker([p.lat, p.lng]); marker.dataId = p.id;
                 marker.bindTooltip(p.id, { direction: 'top', offset: L.point(0, -15) });
                 const layerDetails = p.layers.map(l => `<li class="flex justify-between items-center py-0.5 border-b border-gray-100"><span class="text-xs font-medium"><span class="w-2 h-2 inline-block rounded-full soil-${l.type} mr-1"></span>${soilNamesJp[l.type]}</span><span class="text-xs text-gray-500">${l.startDepth.toFixed(1)}m〜${l.endDepth.toFixed(1)}m</span><span class="text-xs font-bold text-gray-800">N=${l.nValue >= 50 ? '50+' : l.nValue}</span></li>`).join('');
-                marker.bindPopup(`<div class="min-w-[250px] text-xs"><div class="font-bold text-blue-700 text-sm">${p.id}</div><p class="text-xs text-gray-600 mb-2">採取日: ${p.date} / 総深度: ${p.depth.toFixed(1)}m</p><p class="text-gray-500 mb-2">${p.description}</p>${createLayerChartHtml(p.layers, p.depth)}<div class="mt-2 text-gray-700 font-bold mb-1">層構成詳細</div><ul class="list-none p-0 bg-gray-50 rounded p-2">${layerDetails}</ul><a href="https://tamate1208.github.io/Giov/B-sample_34.056944_132.525833_20180522.pdf" target="_blank" rel="noopener noreferrer" class="pdf-button">柱状図PDFを開く (Sample)</a></div>`);
+                marker.bindPopup(`<div class="min-w-[250px] text-xs"><div class="font-bold text-blue-700 text-sm">${p.id}</div><p class="text-xs text-gray-600 mb-2">採取日: ${p.date} / 総深度: ${p.depth.toFixed(1)}m</p><p class="text-gray-500 mb-2">${p.description}</p>${createLayerChartHtml(p.layers, p.depth)}<div class="mt-2 text-gray-700 font-bold mb-1">層構成詳細</div><ul class="list-none p-0 bg-gray-50 rounded p-2">${layerDetails}</ul><a href="B-sample_34.056944_132.525833_20180522.pdf" target="_blank" rel="noopener noreferrer" class="pdf-button">柱状図PDFを開く (Sample)</a>/a></div>`);
                 markersLayer.addLayer(marker);
                 if (p.id === currentPopupId) setTimeout(() => marker.openPopup(), 10);
             });
@@ -282,6 +282,7 @@
     </script>
 </body>
 </html>
+
 
 
 
